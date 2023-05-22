@@ -3,7 +3,7 @@ package rule
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -72,7 +72,7 @@ func (v *RuleSetRaw) generate() (*RuleSet, error) {
 	return &result, nil
 }
 func Parse(file string) (*RuleSet, error) {
-	buffer, err := ioutil.ReadFile(file)
+	buffer, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
