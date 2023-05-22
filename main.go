@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/wushilin/tlsproxy_go/logging"
+	"github.com/wushilin/tlsproxy_go/rule"
 	"github.com/wushilin/tlsproxy_go/worker"
 )
 
@@ -25,14 +26,28 @@ func (i *arrayFlags) Set(value string) error {
 
 var binding arrayFlags
 var logLevel int
+var ruleFile string
 
 func main() {
 	flag.Var(&binding, "b", "Binding in listen:listen_port:target_port format (e.g. 0.0.0.0:9092:19092)")
+	flag.StringVar(&ruleFile, "acl", "", "ACL file for evaluating if host should be allowed")
 	flag.IntVar(&logLevel, "loglevel", 0, "Log level (0 for debug, higher is less)")
 	flag.Parse()
 
 	INFO("Starting")
 	INFO("Setting Log level to %d", logLevel)
+	var acl *rule.RuleSet = nil
+	var err error = nil
+	if ruleFile != "" {
+		acl, err = rule.Parse(ruleFile)
+		if err != nil {
+			ERROR("Failed to parse rule file %s:%s", ruleFile, err)
+			os.Exit(1)
+		}
+		INFO("Successfully loaded ACL rules from %s", ruleFile)
+	} else {
+		INFO("Not loading ACL rules. you can specify -acl `rules.json` to enable ACL checks")
+	}
 	SetLogLevel(logLevel)
 	var global_wg = new(sync.WaitGroup)
 	var workers = make([]*worker.Worker, 0)
@@ -84,6 +99,7 @@ func main() {
 			TargetPort: target_port,
 			Downloaded: 0,
 			Uploaded:   0,
+			Acl:        acl,
 		}
 		global_wg.Add(1)
 		go worker.Start(global_wg)

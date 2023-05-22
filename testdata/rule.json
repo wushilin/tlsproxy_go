@@ -1,0 +1,13 @@
+{
+    "no_match_decision":"reject",
+    "whitelist":[
+        "host:a",
+        "host:www.google.com",
+        "pattern:www\\.goo.*\\.com"
+    ],
+    "blacklist":[
+        "host:a",
+        "host:b",
+        "pattern:www.goddogle.com"
+    ]
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	. "github.com/wushilin/tlsproxy_go/logging"
+	"github.com/wushilin/tlsproxy_go/rule"
 	"github.com/wushilin/tlsproxy_go/tlsheader"
 )
 
@@ -21,6 +22,7 @@ type Worker struct {
 	Downloaded   uint64
 	TotalHandled int64
 	Active       int64
+	Acl          *rule.RuleSet
 }
 
 var ID_GEN uint64 = 0
@@ -94,6 +96,14 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 		return
 	}
 
+	if v.Acl != nil {
+		if !v.Acl.CheckAccess(sniInfo.SNIHost) {
+			INFO("%d Acl rejected access to %s", conn_id, sniInfo.SNIHost)
+			return
+		} else {
+			INFO("%d Acl accepted access to %s", conn_id, sniInfo.SNIHost)
+		}
+	}
 	connection.SetReadDeadline(time.Time{})
 	dest, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sniInfo.SNIHost, v.TargetPort), 10*time.Second)
 	if err != nil {
