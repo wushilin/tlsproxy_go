@@ -32,19 +32,19 @@ func (v *Worker) Start(wg *sync.WaitGroup) {
 	listener := fmt.Sprintf("%s:%d", v.BindHost, v.BindPort)
 	server, err := net.Listen("tcp4", listener)
 	if err != nil {
-		ERROR().Msgf("Failed to LISTEN to %s:%s", listener, err)
+		ERROR("Failed to LISTEN to %s:%s", listener, err)
 		os.Exit(1)
 	}
 	defer server.Close()
-	INFO().Msgf("Listening on %s -> SNIHost:%d", listener, v.TargetPort)
+	INFO("Listening on %s -> SNIHost:%d", listener, v.TargetPort)
 	for {
 		connection, err := server.Accept()
 		if err != nil {
-			ERROR().Msgf("Error accepting connection: %s ", err.Error())
+			ERROR("Error accepting connection: %s ", err.Error())
 			os.Exit(1)
 		}
 		var connection_id = atomic.AddUint64(&ID_GEN, 1)
-		INFO().Msgf("%d Accepted from %v to %v", connection_id, connection.RemoteAddr(), connection.LocalAddr())
+		INFO("%d Accepted from %v to %v", connection_id, connection.RemoteAddr(), connection.LocalAddr())
 		go v.processClient(connection, connection_id)
 	}
 }
@@ -57,7 +57,7 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 	var downloaded uint64 = 0
 	defer func() {
 		connection.Close()
-		INFO().Msgf("%d Done. Uptime: %v Uploaded: %d bytes Downloaded: %d bytes", conn_id, time.Since(start), uploaded, downloaded)
+		INFO("%d Done. Uptime: %v Uploaded: %d bytes Downloaded: %d bytes", conn_id, time.Since(start), uploaded, downloaded)
 		atomic.AddUint64(&v.Uploaded, uploaded)
 		atomic.AddUint64(&v.Downloaded, downloaded)
 		atomic.AddInt64(&v.Active, -1)
@@ -68,13 +68,13 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 	connection.SetReadDeadline(time.Now().Add(time.Second * 30))
 	nread, err := connection.Read(buffer)
 	if err != nil {
-		ERROR().Msgf("%d TLS ClientHello read error: %s", conn_id, err)
+		ERROR("%d TLS ClientHello read error: %s", conn_id, err)
 		return
 	}
 	for !tlsheader.PreCheck(buffer[:nread]) {
 		new_nread, err := connection.Read(buffer[nread:])
 		if err != nil {
-			ERROR().Msgf("%d Closed before TLSHeader is ready: %s", conn_id, err)
+			ERROR("%d Closed before TLSHeader is ready: %s", conn_id, err)
 			return
 		}
 		nread += new_nread
@@ -85,22 +85,22 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 	}
 
 	if !tlsheader.PreCheck(buffer[:nread]) {
-		ERROR().Msgf("%d PreCheck failed on full buffer. Skipping", conn_id)
+		ERROR("%d PreCheck failed on full buffer. Skipping", conn_id)
 		return
 	}
 	sniInfo, err := tlsheader.Parse(buffer[:nread])
 	if err != nil {
-		ERROR().Msgf("%d TLS Header parse failed: %s", conn_id, err)
+		ERROR("%d TLS Header parse failed: %s", conn_id, err)
 		return
 	}
 
 	connection.SetReadDeadline(time.Time{})
 	dest, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sniInfo.SNIHost, v.TargetPort), 10*time.Second)
 	if err != nil {
-		WARN().Msgf("%d Client %v can't connect to host %s: %s", conn_id, connection.RemoteAddr(), sniInfo.SNIHost, err)
+		WARN("%d Client %v can't connect to host %s: %s", conn_id, connection.RemoteAddr(), sniInfo.SNIHost, err)
 		return
 	}
-	INFO().Msgf("%d Client %v connected to host %s via %s", conn_id, connection.RemoteAddr(), sniInfo.SNIHost, dest.LocalAddr())
+	INFO("%d Client %v connected to host %s via %s", conn_id, connection.RemoteAddr(), sniInfo.SNIHost, dest.LocalAddr())
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	dest.Write(buffer[:nread])

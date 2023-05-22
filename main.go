@@ -31,8 +31,9 @@ func main() {
 	flag.IntVar(&logLevel, "loglevel", 0, "Log level (0 for debug, higher is less)")
 	flag.Parse()
 
-	INFO().Msgf("Setting Log level to %d", logLevel)
-	SetLoggingLevel(logLevel)
+	INFO("Starting")
+	INFO("Setting Log level to %d", logLevel)
+	SetLogLevel(logLevel)
 	var global_wg = new(sync.WaitGroup)
 	var workers = make([]*worker.Worker, 0)
 	for _, next := range binding {
@@ -42,14 +43,14 @@ func main() {
 		bind_port := 0
 		target_port := 0
 		if token_size < 2 {
-			ERROR().Msgf("Invalid binding spec: [%s]", next)
+			ERROR("Invalid binding spec: [%s]", next)
 			os.Exit(1)
 			continue
 		} else if token_size == 2 {
 			bind_host = tokens[0]
 			bind_port_a, err := strconv.Atoi(tokens[1])
 			if err != nil {
-				ERROR().Msgf("Invalid binding spec: [%s]", next)
+				ERROR("Invalid binding spec: [%s]", next)
 				os.Exit(1)
 				continue
 			}
@@ -59,7 +60,7 @@ func main() {
 			bind_host = tokens[0]
 			bind_port_a, err := strconv.Atoi(tokens[1])
 			if err != nil {
-				ERROR().Msgf("Invalid binding spec: [%s]", next)
+				ERROR("Invalid binding spec: [%s]", next)
 				os.Exit(1)
 				continue
 			}
@@ -67,15 +68,15 @@ func main() {
 
 			target_port_a, err := strconv.Atoi(tokens[2])
 			if err != nil {
-				ERROR().Msgf("Invalid int: %d", err)
+				ERROR("Invalid int: %d", err)
 				continue
 			}
 			target_port = target_port_a
 		} else {
-			ERROR().Msgf("Unknown binding: %s", next)
+			ERROR("Unknown binding: %s", next)
 			continue
 		}
-		INFO().Msgf("Starting connector worker bind: [%s], port: %d target: %d", bind_host, bind_port, target_port)
+		INFO("Starting connector worker bind: [%s], port: %d target: %d", bind_host, bind_port, target_port)
 
 		var worker = &worker.Worker{
 			BindHost:   bind_host,
@@ -95,7 +96,7 @@ func main() {
 func report(ws []*worker.Worker) {
 	for {
 		for _, next := range ws {
-			INFO().Msgf(" *** STATUS for %s:%d->%d uploaded %d bytes; downloaded %d bytes; active requests %d; total requests %d",
+			INFO(" *** STATUS for %s:%d->%d uploaded %d bytes; downloaded %d bytes; active requests %d; total requests %d",
 				next.BindHost, next.BindPort, next.TargetPort,
 				next.Uploaded, next.Downloaded, next.Active, next.TotalHandled)
 		}
