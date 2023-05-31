@@ -100,9 +100,12 @@ func main() {
 			tokens := strings.Split(self_ip, ";")
 			for _, next := range tokens {
 				next = strings.TrimSpace(next)
-				self_ips[next] = true
+				if next != "" {
+					self_ips[next] = true
+				}
 			}
 		}
+		INFO("Self IPs: %v", self_ips)
 
 		var worker = &worker.Worker{
 			BindHost:    bind_host,
