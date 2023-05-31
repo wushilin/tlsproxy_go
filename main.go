@@ -27,11 +27,13 @@ func (i *arrayFlags) Set(value string) error {
 var binding arrayFlags
 var logLevel int
 var ruleFile string
+var self_ip string
 
 func main() {
 	flag.Var(&binding, "b", "Binding in listen:listen_port:target_port format (e.g. 0.0.0.0:9092:19092)")
 	flag.StringVar(&ruleFile, "acl", "", "ACL file for evaluating if host should be allowed")
 	flag.IntVar(&logLevel, "loglevel", 0, "Log level (0 for debug, higher is less)")
+	flag.StringVar(&self_ip, "selfip", "", "Self IP address. If set, this will prevent self connection loop")
 	flag.Parse()
 
 	INFO("Starting")
@@ -93,13 +95,23 @@ func main() {
 		}
 		INFO("Starting connector worker bind: [%s], port: %d target: %d", bind_host, bind_port, target_port)
 
+		self_ips := make(map[string]bool)
+		if len(self_ip) > 0 {
+			tokens := strings.Split(self_ip, ";")
+			for _, next := range tokens {
+				next = strings.TrimSpace(next)
+				self_ips[next] = true
+			}
+		}
+
 		var worker = &worker.Worker{
-			BindHost:   bind_host,
-			BindPort:   bind_port,
-			TargetPort: target_port,
-			Downloaded: 0,
-			Uploaded:   0,
-			Acl:        acl,
+			BindHost:    bind_host,
+			BindPort:    bind_port,
+			TargetPort:  target_port,
+			Downloaded:  0,
+			Uploaded:    0,
+			Acl:         acl,
+			SelfAddress: self_ips,
 		}
 		global_wg.Add(1)
 		go worker.Start(global_wg)

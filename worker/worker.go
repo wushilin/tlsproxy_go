@@ -23,6 +23,7 @@ type Worker struct {
 	TotalHandled int64
 	Active       int64
 	Acl          *rule.RuleSet
+	SelfAddress  map[string]bool
 }
 
 var ID_GEN uint64 = 0
@@ -104,6 +105,12 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 			INFO("%d Acl accepted access to %s", conn_id, sniInfo.SNIHost)
 		}
 	}
+
+	ips := lookup_ips(sniInfo.SNIHost)
+	if is_self_ip(ips, v.SelfAddress) {
+		INFO("%d Declined self to self access. %s in %v", v.SelfAddress, ips)
+		return
+	}
 	connection.SetReadDeadline(time.Time{})
 	dest, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", sniInfo.SNIHost, v.TargetPort), 10*time.Second)
 	if err != nil {
@@ -119,6 +126,27 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 	wg.Wait()
 }
 
+func lookup_ips(host string) []string {
+	result := make([]string, 0)
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return result
+	}
+	for _, ip := range ips {
+		result = append(result, ip.String())
+	}
+	return result
+}
+
+func is_self_ip(ips []string, myaddr map[string]bool) bool {
+	for _, next := range ips {
+		yes_or_no, ok := myaddr[next]
+		if ok && yes_or_no {
+			return true
+		}
+	}
+	return false
+}
 func pipe(conn_id uint64, uploaded *uint64, downloaded *uint64, src net.Conn, dest net.Conn, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
