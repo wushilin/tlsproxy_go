@@ -108,7 +108,7 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 
 	ips := lookup_ips(sniInfo.SNIHost)
 	if is_self_ip(ips, v.SelfAddress) {
-		INFO("%d Declined self to self access. %s in %v", v.SelfAddress, ips)
+		INFO("%d Declined self to self access. %s in %v", conn_id, v.SelfAddress, ips)
 		return
 	}
 	connection.SetReadDeadline(time.Time{})
