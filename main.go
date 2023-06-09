@@ -28,12 +28,14 @@ var binding arrayFlags
 var logLevel int
 var ruleFile string
 var self_ip string
+var idle_close_seconds int
 
 func main() {
 	flag.Var(&binding, "b", "Binding in listen:listen_port:target_port format (e.g. 0.0.0.0:9092:19092)")
 	flag.StringVar(&ruleFile, "acl", "", "ACL file for evaluating if host should be allowed")
 	flag.IntVar(&logLevel, "loglevel", 0, "Log level (0 for debug, higher is less)")
 	flag.StringVar(&self_ip, "selfip", "", "Self IP address. If set, this will prevent self connection loop")
+	flag.IntVar(&idle_close_seconds, "idle_close_seconds", -1, "Close connection after this many of IO idle seconds")
 	flag.Parse()
 
 	INFO("Starting")
@@ -108,13 +110,14 @@ func main() {
 		INFO("Self IPs: %v", self_ips)
 
 		var worker = &worker.Worker{
-			BindHost:    bind_host,
-			BindPort:    bind_port,
-			TargetPort:  target_port,
-			Downloaded:  0,
-			Uploaded:    0,
-			Acl:         acl,
-			SelfAddress: self_ips,
+			BindHost:         bind_host,
+			BindPort:         bind_port,
+			TargetPort:       target_port,
+			Downloaded:       0,
+			Uploaded:         0,
+			Acl:              acl,
+			SelfAddress:      self_ips,
+			IdleCloseSeconds: idle_close_seconds,
 		}
 		global_wg.Add(1)
 		go worker.Start(global_wg)

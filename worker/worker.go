@@ -2,7 +2,6 @@ package worker
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sync"
@@ -15,15 +14,16 @@ import (
 )
 
 type Worker struct {
-	BindHost     string
-	BindPort     int
-	TargetPort   int
-	Uploaded     uint64
-	Downloaded   uint64
-	TotalHandled int64
-	Active       int64
-	Acl          *rule.RuleSet
-	SelfAddress  map[string]bool
+	BindHost         string
+	BindPort         int
+	TargetPort       int
+	Uploaded         uint64
+	Downloaded       uint64
+	TotalHandled     int64
+	Active           int64
+	Acl              *rule.RuleSet
+	SelfAddress      map[string]bool
+	IdleCloseSeconds int
 }
 
 var ID_GEN uint64 = 0
@@ -119,10 +119,10 @@ func (v *Worker) processClient(connection net.Conn, conn_id uint64) {
 	}
 	INFO("%d Client %v connected to host %s via %s", conn_id, connection.RemoteAddr(), sniInfo.SNIHost, dest.LocalAddr())
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	dest.Write(buffer[:nread])
 	atomic.AddUint64(&uploaded, uint64(nread))
-	go pipe(conn_id, &uploaded, &downloaded, connection, dest, wg)
+	go pipe(conn_id, &uploaded, &downloaded, connection, dest, wg, v.IdleCloseSeconds)
 	wg.Wait()
 }
 
@@ -147,17 +147,70 @@ func is_self_ip(ips []string, myaddr map[string]bool) bool {
 	}
 	return false
 }
-func pipe(conn_id uint64, uploaded *uint64, downloaded *uint64, src net.Conn, dest net.Conn, wg *sync.WaitGroup) {
+func pipe(conn_id uint64, uploaded *uint64, downloaded *uint64, src net.Conn, dest net.Conn, wg *sync.WaitGroup, idle_close_seconds int) {
+	var last_activity = time.Now()
+	var running = true
 	go func() {
-		defer wg.Done()
-		written, _ := io.Copy(src, dest)
-		atomic.AddUint64(downloaded, uint64(written))
+		// src to dest go routine!
+		defer func() {
+			wg.Done()
+			running = false
+		}()
+		buffer := make([]byte, 4096)
+		nread := 0
+		nwritten := 0
+		var err error
+		for {
+			nread, err = src.Read(buffer)
+			if err != nil {
+				break
+			}
+			nwritten, err = dest.Write(buffer[:nread])
+			last_activity = time.Now()
+			if err != nil {
+				break
+			}
+			atomic.AddUint64(uploaded, uint64(nwritten))
+		}
 		src.Close()
+		dest.Close()
+	}()
+	go func() {
+		//Dest to src
+		defer func() {
+			wg.Done()
+			running = false
+		}()
+		buffer := make([]byte, 4096)
+		nread := 0
+		nwritten := 0
+		var err error
+		for {
+			nread, err = dest.Read(buffer)
+			if err != nil {
+				break
+			}
+			nwritten, err = src.Write(buffer[:nread])
+			last_activity = time.Now()
+			if err != nil {
+				break
+			}
+			atomic.AddUint64(downloaded, uint64(nwritten))
+		}
+		src.Close()
+		dest.Close()
 	}()
 	go func() {
 		defer wg.Done()
-		written, _ := io.Copy(dest, src)
-		atomic.AddUint64(uploaded, uint64(written))
-		dest.Close()
+		for running {
+			if idle_close_seconds < 0 {
+				return
+			}
+			if time.Since(last_activity) > time.Second*time.Duration(idle_close_seconds) {
+				INFO("%d client timeout with no activity (%d seconds)", conn_id, idle_close_seconds)
+				src.Close()
+				dest.Close()
+			}
+		}
 	}()
 }
