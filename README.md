@@ -19,6 +19,12 @@ It starts 2 listeners:
 * one listens on 443, and forward the requests to SNI hosts port 443
 * one listens on 3465, and forward the request to SNI hosts port 465
 
+# Avoid connecting to self
+The program will cause infinite loop if it connects to itself. To avoid that, you can specify a self ip by
+-selfip "ip1;ip2"
+
+When SNI info points to host that would resolve to one of the self IP addresses, the connection will be rejected.
+
 # Debug log
 ```bash
 $ ./tlsproxy_go -b 0.0.0.0:443:443 -b 127.0.0.1:3465:465 -loglevel 0
